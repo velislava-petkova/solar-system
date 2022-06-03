@@ -1,0 +1,301 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8"/>
+	<title>Solar System</title>
+	<link rel="stylesheet" href="styles.css">
+	<script src="webgl-fmi-t.js"></script>
+	<script src="planet-functions.js"></script>
+	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		uniform mat4 uNormalMatrix;
+		uniform bool uUseNormalMatrix;
+		
+		uniform bool uUseAmbient;
+		uniform vec3 uAmbientColor;
+
+		uniform bool uUseDiffuse;
+		uniform vec3 uDiffuseColor;
+
+		uniform vec3 uLightDir;
+		
+		attribute vec3 aXYZ;		
+		attribute vec3 aColor;		
+		attribute vec3 aNormal;		
+			
+		varying vec3 vNormal;
+		varying vec3 vColor;
+		varying vec3 vPos;
+		
+		//Texture
+		uniform sampler2D uRelef;
+		attribute vec2 aST;
+		varying vec3 vST;
+		
+		void main ()
+		{
+			mat4 mvMatrix = uViewMatrix * uModelMatrix;
+			vec4 pos = mvMatrix * vec4(aXYZ,1);
+			gl_Position = uProjectionMatrix * pos;
+			mat4 nMatrix = uUseNormalMatrix?uNormalMatrix:mvMatrix;
+			vST = vec3(aST,1);
+							
+			vColor = aColor;
+			if (uUseAmbient) vColor *= uAmbientColor;
+				
+			vec3 normal = vec3(normalize(nMatrix*vec4(aNormal,0)));
+			vec3 light = normalize(-uLightDir);
+			if (uUseDiffuse)vColor += aColor*uDiffuseColor* max(dot(normal,light),0.0);
+
+			vPos = pos.xyz/pos.w;
+			vNormal = normal;
+	
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+	
+		uniform sampler2D uTexUnit;
+		uniform mat3 uTexMatrix;
+		varying vec3 vST;
+		
+		
+		varying vec3 vColor;
+		
+		void main( )
+		{
+			vec4 texCol = texture2D(uTexUnit,(uTexMatrix*vST).st);
+			gl_FragColor = texCol;
+		}
+	</script>
+
+	<script>				
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+			
+			canvas.addEventListener("mousemove", mouseMove);
+
+			
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			getVariables();
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+
+			gl.uniform3f(uAmbientColor,0.7,0.7,0.7);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform1i(uUseDiffuse,true);
+			gl.uniform3f(uLightDir,0,-1,-1);
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0,0,0.28,1);
+		
+			//Създаваме планетите 
+			
+			Sun=new Sphere([0,0,0],4);
+			Sun.color=[0.7,0.5,0];
+			
+			Mercury=new Sphere([5,0,0], 0.04);
+			Mercury.color=[1,0,0];
+			Venus=new Sphere([6,0,0], 0.0605);
+			Venus.color=[1,0,0];
+			Earth=new Sphere([7,0,0], 0.0637);
+			Earth.color=[0,0.5,1];
+			Mars=new Sphere([8,0,0], 0.0334);
+			Mars.color=[0,0.5,1];
+			Jupiter=new Sphere([10,0,0],0.69911);
+			Jupiter.color=[0,0.5,1];
+			Saturn=new Sphere([13,0,0], 0.58232 );
+			Saturn.color=[0,0.5,1];
+			Uranus=new Sphere([15,0,0], 0.25362 );
+			Uranus.color=[0,0.5,1];
+			Neptune=new Sphere([17,0,0], 0.24622);
+			Neptune.color=[0,0.5,1];
+			Pluto=new Sphere([19,0,0], 0.020 );
+			Pluto.color=[0,0.5,1];
+			
+			//Създаваме фон на Космос със звезди
+			Stars=new Sphere([0,0,0],50);
+			Stars.texture=loadTexture('background.jpg');
+			
+			//Добавяме текстури на планетите
+			Sun.texture = loadTexture('sun.jpg');
+			Mercury.texture = loadTexture('mercury.jpg');
+			Venus.texture = loadTexture('venus.jpg');
+			Earth.texture = loadTexture('earth.jpg');
+			Mars.texture = loadTexture('mars.jpg');
+			Jupiter.texture = loadTexture('jupiter.jpg');
+			Saturn.texture = loadTexture('saturn.jpg');
+			Uranus.texture = loadTexture('uran.jpg');
+			Neptune.texture = loadTexture('neptune.jpg');
+			Pluto.texture = loadTexture('pluto.jpg');
+			
+			
+			//Добавяме планетите и слънцето в масив
+			
+			planets.push(Sun);
+			planets.push(Mercury);
+			planets.push(Venus);
+			planets.push(Earth);
+			planets.push(Jupiter);
+			planets.push(Mars);
+			planets.push(Saturn);
+			planets.push(Uranus);
+			planets.push(Neptune);
+			planets.push(Pluto);
+			
+			//Извикваме функция, която задава информацията за всяка от планетите
+			setPlanetsInfo(planets);
+				
+		}
+		
+		
+		var frame = 0;
+		var activeobj;
+		var xTo=0;
+		var yTo=0;
+		var zTo=0;
+		var xFrom=35;
+		var yFrom=20;
+		var zFrom=0;
+		var planets=[];
+		var move=true;	
+		
+		var a=0, b=0, dA=0.1, dB=0;
+		function mouseMove(event)
+		{
+			dA = (gl.canvas.width/2-(event.clientX-gl.canvas.offsetLeft))/400;
+			dB = (gl.canvas.height/2-(event.clientY-gl.canvas.offsetTop))/300;
+		}
+
+		var time1 = now();
+		var dT = 0;
+		function now() { return (new Date()).getTime()/1000; }
+				
+		function drawFrame()
+		{		
+			var oldTime = time1;
+			time1 = now();
+			dT = time1-oldTime;
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			if(move){
+			
+				a += dA*dT; 
+				b -= dB*dT; 
+				if (b>1.5) b=1.5;  
+				if (b<-1.5) b=-1.5; 
+		
+				lookAt([25-10*Math.cos(a)*Math.cos(b),30-10*Math.sin(a)*Math.cos(b),10*Math.sin(b)],[0,0,0],[0,0,1]);
+			
+			}
+			else{
+				lookAt([xFrom,yFrom,1], [xTo+0.05,yTo,zTo], [0,0,1]);
+			}
+				
+			var time = (new Date()).getTime()/1000;
+			var speed=document.getElementById("speedRange");
+			var k=speed.value;
+			var output=document.getElementById("currentSpeed");
+			output.innerHTML=k;
+			time*=k;
+			
+			//Рисуваме звездите
+			Stars.draw();
+			
+			//Ако не сме натиснали бутон за конкретна планета имаме 
+			//постоянно движение и рисуваме цяката сцена
+			if(move){
+							
+				Mercury.center=[5*Math.sin(5*time/10),5*Math.cos(5*time/10),0];
+				Venus.center=[6*Math.sin(3.69*time/10),6*Math.cos(3.69*time/10),0];
+				Earth.center=[7*Math.sin(3.143*time/10),7*Math.cos(3.143*time/10),0];
+				Mars.center=[8*Math.sin(2.542*time/10),8*Math.cos(2.542*time/10),0];
+				Jupiter.center=[10*Math.sin(1.38*time/10),10*Math.cos(1.38*time/10),0];
+				Saturn.center=[13*Math.sin(1.023*time/10),13*Math.cos(1.023*time/10),0];
+				Uranus.center=[15*Math.sin(0.717*time/10),15*Math.cos(0.717*time/10),0];
+				Neptune.center=[17*Math.sin(0.56*time/10),17*Math.cos(0.56*time/10),0];
+				Pluto.center=[19*Math.sin(0.49*time/10),19*Math.cos(0.49*time/10),0];		
+				
+				for(var i=0; i<10; i++){
+					planets[i].draw();
+				}
+				
+				displayPlanetInfo(Sun);
+			
+			}
+			else{
+			
+			//Ако имаме кликнат бутон имаме активна планета,
+			//рисуваме само нея с определен размер за да се побира добре в полето
+				oldsize=activeobj.size;
+				activeobj.size=0.2;
+				activeobj.draw();	
+				activeobj.size=oldsize;
+			}
+			
+			requestAnimationFrame(drawFrame);
+		}
+	
+	</script>	
+</head>
+
+<body onload="start()">
+
+	<p id="title1">Solar System</p>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+		
+	<p id="buttonsPanel">
+		
+		<input type="range" min="0" max="20" value="1" step="0.1" id="speedRange">
+		<output id="currentSpeed"></output>	
+			
+		<button onclick="zoomOut()">Solar System</button>
+		<button onclick="zoomPlanet(Mercury)">Mercury</button>
+		<button onclick="zoomPlanet(Venus)">Venus</button>
+		<button onclick="zoomPlanet(Earth)">Earth</button>
+		<button onclick="zoomPlanet(Mars)">Mars</button>
+		<button onclick="zoomPlanet(Jupiter)">Jupiter</button>
+		<button onclick="zoomPlanet(Saturn)">Saturn</button>
+		<button onclick="zoomPlanet(Uranus)">Uranus</button>
+		<button onclick="zoomPlanet(Neptune)">Neptune</button>
+		<button onclick="zoomPlanet(Pluto)">Pluto</button>
+	
+	</p>
+	
+	<div class="row">
+		<div class="column"> 
+		<h1>Planet information</h1>	
+		<p><span id="objName"></span></p>
+		<span id="planetInfo"></span> 
+		</div>
+		
+		<div class="column">
+			<canvas id="picasso" width="1300" height="800" style="border: solid;">
+				Искаме canvas, но няма!
+			</canvas>
+		</div>
+	</div>
+	
+</body>
+
+</html>
