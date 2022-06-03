@@ -1,0 +1,48 @@
+
+body {
+  background-color: #bca1b9;
+}
+
+#speedRange {
+	width: 300px;
+	-webkit-transition: .1s;
+}
+
+.column {
+  float: left;
+  width: 20%;
+  padding-left: 1%;
+  padding-right: 1%;
+}
+
+h1 {
+	text-align: center;
+}
+
+#title1{
+	font-size: 70px;
+	text-align: center;
+}
+
+#objName {
+	
+	font-size: 25px;
+	text-align: center;
+}
+
+.row:after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+#buttonsPanel{
+	text-align: center;
+	padding-left: 10%;
+}
+
+button{
+	height: 30px;
+	font-family: "Times New Roman", Times, serif;
+	font-size: 20px;
+}
